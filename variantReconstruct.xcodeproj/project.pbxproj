@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2B42397D179F250E00F16257 /* snp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2B42397C179F250E00F16257 /* snp.cpp */; };
 		2B8B49AA17987D6400563D02 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2B8B49A917987D6400563D02 /* main.cpp */; };
 		2B8B49AC17987D6400563D02 /* variantReconstruct.1 in CopyFiles */ = {isa = PBXBuildFile; fileRef = 2B8B49AB17987D6400563D02 /* variantReconstruct.1 */; };
 /* End PBXBuildFile section */
@@ -25,9 +26,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		2B42397C179F250E00F16257 /* snp.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = snp.cpp; sourceTree = "<group>"; };
 		2B8B49A517987D6400563D02 /* variantReconstruct */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = variantReconstruct; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B8B49A917987D6400563D02 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		2B8B49AB17987D6400563D02 /* variantReconstruct.1 */ = {isa = PBXFileReference; lastKnownFileType = text.man; path = variantReconstruct.1; sourceTree = "<group>"; };
+		2B8B49B617987FF000563D02 /* snp.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = snp.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -61,6 +64,8 @@
 			isa = PBXGroup;
 			children = (
 				2B8B49A917987D6400563D02 /* main.cpp */,
+				2B8B49B617987FF000563D02 /* snp.h */,
+				2B42397C179F250E00F16257 /* snp.cpp */,
 				2B8B49AB17987D6400563D02 /* variantReconstruct.1 */,
 			);
 			path = variantReconstruct;
@@ -118,6 +123,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2B8B49AA17987D6400563D02 /* main.cpp in Sources */,
+				2B42397D179F250E00F16257 /* snp.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -204,6 +210,7 @@
 				2B8B49B117987D6400563D02 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
