@@ -11,28 +11,70 @@
 #include <sstream>
 #include <string>
 #include "snp.h"
+#include "snpgraph.h"
 #include <stdio.h>
 #include <vector>
 #include <map>
 #include <math.h>
 #include <algorithm>
 #include <regex.h>
-using namespace std;
 
+#include <boost/graph/undirected_graph.hpp>
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/bron_kerbosch_all_cliques.hpp>
+#include <boost/graph/graph_concepts.hpp>
+
+
+using namespace std;
+using namespace boost;
+
+
+struct all_clique_visitor
+{
+    vector< deque<unsigned long> > all_cliques;
+    
+    template <typename Clique, typename Graph>
+    inline void clique(const Clique& p, const Graph& g)
+    {
+        all_cliques.push_back(p);
+    }
+    
+    inline vector<deque<unsigned long> > returnAllCliques() 
+    { 
+        return all_cliques;
+    }    
+        
+};
+
+struct max_clique_visitor
+{
+    max_clique_visitor(std::size_t& max)
+    : maximum(max)
+    { }
+    
+    template <typename Clique, typename Graph>
+    inline void clique(const Clique& p, const Graph& g)
+    {
+        BOOST_USING_STD_MAX();
+        maximum = max BOOST_PREVENT_MACRO_SUBSTITUTION (maximum, p.size());
+    }
+    std::size_t& maximum;
+};
+ 
 vector<string> shallow_snps; // snps at positions where depth is < 1000.
 vector<string> snps_to_remove; // snpkeys of snps that are removed beacuse of low depth and fewer connectivity to other snps
 map< string, snp > snpmap;   // key: string with snp pos and base, value: corresponding snp object
 int numsnp = 0;
 map<string, int> snpkey_index; // numerical index for each snpkey, starting from 0 till numsnp-1;
 map<int, vector<string> > snpbins; // key: bin identifier, value: list of snps in that bin
-int TOTALLINKS = 2;
-int LINKTHRES = 1;
+int LINKTHRES = 2;
 int NUMREADTHRES = 2;
 float MINSNPFREQ = 0.002;
 int MINDEPTH = 1000; // coverage depth below which a snp is considered 'shallow', and not used as building blocks of variants
 
 ofstream outfile; // output file
 ofstream linkmat_out; // contains linkmatrix
+ofstream truesnps; // print snps that have sufficient read depth, snp freq, and connectivity to other snps
 
 
 // declare functions
@@ -49,6 +91,12 @@ vector<vector<string> > disjointedSNPs ( vector<string> ); // take a list of snp
 vector<string> BFS ( vector<string> );
 void printSNPset ( vector<vector<string> > );
 
+void getHaps2();
+vector<string> sortedSNPsByFreq();
+
+void getHaps3();
+
+
 int usage() {
     cout << "USAGE:\n"
     << "-r\tHapread file: contains snp pos, snp base, space-separated list of read ids that contain the snp\n"
@@ -59,6 +107,7 @@ int usage() {
 int main(int argc, const char * argv[]) {
     outfile.open("out1.txt");
     linkmat_out.open("linkmatrix.txt");
+    truesnps.open("true_snps.txt");
     
     map<int, vector<float> > bindefined;
 
@@ -82,17 +131,113 @@ int main(int argc, const char * argv[]) {
         }
     */
         removeWeakSNPs(); // SNPs with low depth, low freq, and low connectivity to other SNPs
+        // print remaining snps which may be considered as true snps
+        numsnp = snpmap.size();
+        cout << "Number of snps: " << numsnp << endl;
+        for (map<string, snp>::iterator s=snpmap.begin(); s!= snpmap.end(); ++s) {        
+            truesnps << s->second.position() << " " << s->second.base() << endl;
+        }
+        
         // generate and print link matrix to a file
         linkmatrix();
         
+       // getHaps2();
+        getHaps3();
+        
+        /*
         bindefined = identifybins();
         assignbins( bindefined );
         printSNPbins();
         getHaps();
+        */
     }
     
     return 0;
 }
+
+void getHaps3 () {
+    vector<string> sortedsnps;
+    
+    sortedsnps = sortedSNPsByFreq();
+    // read snps in the ascending order of their freq
+    // build adjacency matrix for all snps that share a read with the snp in consideration
+    // find cliques in the graph represented by the adjacency matrix -> these are probable variants
+    // also save connected components that do not form clique
+    
+    for (vector<string>::size_type i = 0; i != sortedsnps.size(); i++) {
+        snpgraph snplinks;
+        
+        snp s = snpmap[ sortedsnps[i] ];
+        s.printSharedSNP();
+        map<string, int> shared_snps = s.returnSharedSNP();
+        
+        snplinks.setgraphcenter(sortedsnps[i]);
+        snplinks.initializeGraph( shared_snps );
+        // for snps that share a read with current snp, see if those snps are linked as well
+        for (map<string, int>::iterator ss = shared_snps.begin(); ss != shared_snps.end(); ++ss) {
+            snp nbgsnp = snpmap[ ss->first ];
+            snplinks.updateGraph(ss->first, nbgsnp.returnSharedSNP());
+        }
+        
+        snplinks.printGraph();
+        
+        map<string, int> nodes = snplinks.returnGraphNodes();
+        vector<string> vertexvec;
+        vertexvec.resize( nodes.size() );
+        vector<vector<int> >adjmat = snplinks.returnAdjMat();
+        // create vector list of nodes
+        for (map<string, int>::iterator n= nodes.begin(); n != nodes.end(); ++n) {
+            vertexvec[n->second] = n->first;
+        }
+        int num_vertices = vertexvec.size(); // number of nodes in the graph
+        
+        // create a typedef for the Graph type
+      //  typedef adjacency_list<vecS, vecS, undirectedS> Graph;
+        typedef adjacency_list<vecS, vecS, bidirectionalS> Graph;
+        
+        Graph g(num_vertices);
+
+        all_clique_visitor acv;
+        
+        // create edge list
+        typedef std::pair<int, int> Edge;
+        for (int k = 0; k < num_vertices; k++) {
+            for (int j = k+1; j < num_vertices; j++) {
+                if (adjmat[k][j] > 0) {
+                    add_edge(k, j, g);
+                }
+            }
+        }
+        
+        // get the property map for vertex indices
+        typedef property_map<Graph, vertex_index_t>::type IndexMap;
+        IndexMap index = get(vertex_index, g);
+        
+        std::cout << "vertices(g) = ";
+        typedef graph_traits<Graph>::vertex_iterator vertex_iter;
+        std::pair<vertex_iter, vertex_iter> vp;
+        for (vp = vertices(g); vp.first != vp.second; ++vp.first)
+            std::cout << index[*vp.first] <<  " ";
+        std::cout << std::endl;
+        
+      //  std::size_t ret = 0;
+      //  bron_kerbosch_all_cliques(g, find_max_clique(ret));
+
+        bron_kerbosch_all_cliques(g, acv, 2);
+        /*
+        vector<deque<unsigned long> > all_cliques = acv.returnAllCliques();
+        for (vector<deque<unsigned long> >::size_type c = 0; c != all_cliques.size(); c++) {
+            cout << "clique " << c << endl;
+            for (deque<unsigned long>::size_type cs = 0; cs != all_cliques[c].size(); cs++) {
+                cout << all_cliques[c][cs] << " ";
+            }
+            cout << endl;
+        }
+         */
+        
+    }
+}
+
 
 void snp_open(const char * snpfile) {
     FILE * file;
@@ -255,7 +400,7 @@ void removeWeakSNPs() {
             s->second.deleteSharedSNP(shared_snps_to_remove[i]);
         }
     }
-
+    
     // create snpkey index for building link matrix
     snpkey_index.clear();
     int counter = 0;
@@ -268,6 +413,54 @@ void removeWeakSNPs() {
     
     numsnp = snpmap.size();
     outfile << "\nafter dumping snps:" << numsnp << endl;
+}
+
+void getHaps2 () {
+    vector<string> sortedsnps;
+    
+    sortedsnps = sortedSNPsByFreq();
+    // read snps in the ascending order of their freq
+    // build adjacency matrix for all snps that share a read with the snp in consideration
+    // find cliques in the graph represented by the adjacency matrix -> these are probable variants
+    // also save connected components that do not form clique
+    
+    for (vector<string>::size_type i = 0; i != sortedsnps.size(); i++) {
+        snpgraph snplinks;
+        
+        snp s = snpmap[ sortedsnps[i] ];
+        s.printSharedSNP();
+        map<string, int> shared_snps = s.returnSharedSNP();
+            
+        snplinks.setgraphcenter(sortedsnps[i]);
+        snplinks.initializeGraph( shared_snps );
+        // for snps that share a read with current snp, see if those snps are linked as well
+        for (map<string, int>::iterator ss = shared_snps.begin(); ss != shared_snps.end(); ++ss) {
+            snp nbgsnp = snpmap[ ss->first ];
+            snplinks.updateGraph(ss->first, nbgsnp.returnSharedSNP());
+        }
+        
+        snplinks.printGraph();
+    }
+}
+
+vector<string> sortedSNPsByFreq() {
+    vector<string> sortedsnps;
+    multimap<float, string> snpfreq; // create a multimap as multiple snps can have same freq
+    
+    for (map<string, snp>::iterator m = snpmap.begin(); m != snpmap.end(); ++m) {
+        snpfreq.insert( std::pair<float, string>(m->second.cov(), m->first) );
+    }    
+    // multimap sorts elements by key, so read in that order and save snpkey
+    for (multimap<float, string>::iterator s=snpfreq.begin(); s!=snpfreq.end(); ++s) {
+        sortedsnps.push_back(s->second);
+        cout << s->first << " " << s->second << endl;
+    }
+    // check the snps are stored in correct order
+ /*   for (vector<string>::size_type i = 0; i != sortedsnps.size(); i++) {
+        cout << sortedsnps[i] << endl;;
+    }
+  */
+    return sortedsnps;
 }
 
 map<int, vector<float> > identifybins() { // identify boundries of snp frequency bins

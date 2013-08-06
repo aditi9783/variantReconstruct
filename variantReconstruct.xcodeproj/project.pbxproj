@@ -10,6 +10,7 @@
 		2B42397D179F250E00F16257 /* snp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2B42397C179F250E00F16257 /* snp.cpp */; };
 		2B8B49AA17987D6400563D02 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2B8B49A917987D6400563D02 /* main.cpp */; };
 		2B8B49AC17987D6400563D02 /* variantReconstruct.1 in CopyFiles */ = {isa = PBXBuildFile; fileRef = 2B8B49AB17987D6400563D02 /* variantReconstruct.1 */; };
+		2BCB9E2017B03B4C00BF1B94 /* snpgraph.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2BCB9E1F17B03B4C00BF1B94 /* snpgraph.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -31,6 +32,8 @@
 		2B8B49A917987D6400563D02 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		2B8B49AB17987D6400563D02 /* variantReconstruct.1 */ = {isa = PBXFileReference; lastKnownFileType = text.man; path = variantReconstruct.1; sourceTree = "<group>"; };
 		2B8B49B617987FF000563D02 /* snp.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = snp.h; sourceTree = "<group>"; };
+		2BCB9E1D17B0316200BF1B94 /* snpgraph.h */ = {isa = PBXFileReference; path = snpgraph.h; sourceTree = "<group>"; };
+		2BCB9E1F17B03B4C00BF1B94 /* snpgraph.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = snpgraph.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +70,8 @@
 				2B8B49B617987FF000563D02 /* snp.h */,
 				2B42397C179F250E00F16257 /* snp.cpp */,
 				2B8B49AB17987D6400563D02 /* variantReconstruct.1 */,
+				2BCB9E1D17B0316200BF1B94 /* snpgraph.h */,
+				2BCB9E1F17B03B4C00BF1B94 /* snpgraph.cpp */,
 			);
 			path = variantReconstruct;
 			sourceTree = "<group>";
@@ -124,6 +129,7 @@
 			files = (
 				2B8B49AA17987D6400563D02 /* main.cpp in Sources */,
 				2B42397D179F250E00F16257 /* snp.cpp in Sources */,
+				2BCB9E2017B03B4C00BF1B94 /* snpgraph.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -180,6 +186,16 @@
 		2B8B49B017987D6400563D02 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				HEADER_SEARCH_PATHS = /usr/local/include/;
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				MACH_O_TYPE = staticlib;
+				OTHER_LDFLAGS = (
+					"-lboost_iostreams",
+					"-lboost_graph",
+					"-lboost_program_options",
+					"-lboost_regex",
+					"-lboost_serialization",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -187,6 +203,16 @@
 		2B8B49B117987D6400563D02 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				HEADER_SEARCH_PATHS = /usr/local/include/;
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				MACH_O_TYPE = staticlib;
+				OTHER_LDFLAGS = (
+					"-lboost_iostreams",
+					"-lboost_graph",
+					"-lboost_program_options",
+					"-lboost_regex",
+					"-lboost_serialization",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
