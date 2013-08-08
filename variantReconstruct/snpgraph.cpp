@@ -13,6 +13,7 @@
 void snpgraph::initializeGraph( map<string, int> linkedsnps ) {
     
     int index = 1; // index 0 already belongs to the graphcenter
+    
     int nshared = linkedsnps.size(); // number of shared/linked snps
     // initialize adjacency matrix
     vector<int> temp;
@@ -26,6 +27,7 @@ void snpgraph::initializeGraph( map<string, int> linkedsnps ) {
     // read the shared snps, update nodeindex vector representing snps that are linked
     for (map<string, int>::iterator ss = linkedsnps.begin(); ss != linkedsnps.end(); ++ss ) {
         nodeindex[ss->first] = index;
+        nodeindex_vec.push_back(ss->first);
         adjacencyMat[0][index] = ss->second; // index 0 is for the graphcenter, i.e. the snp whose shared_snp list is being used here to initialize the adjacency matrix
         adjacencyMat[index][0] = ss->second; // make the matrix symmetric
         index++;
@@ -40,8 +42,14 @@ void snpgraph::initializeGraph( map<string, int> linkedsnps ) {
  */
 }
 
-void snpgraph::updateGraph( string sharedskey, map<string, int> linkedsnps ) {
+void snpgraph::updateGraph( string sharedskey, map<string, int> linkedsnps, vector<string> snps_seen ) {
     // here, the linkedsnps are the snps that share a read with one of the snps in nodeindex, i.e., the snps that share a read with the graphcenter
+    
+    // erase snps that have been looked at before, to avoid rediscovering same cliques
+    for (vector<string>::size_type i = 0; i < snps_seen.size(); i++) {
+        linkedsnps.erase( snps_seen[i] );
+    }
+  
     
     // get the index of the snp that matches sharedskey
     int skeyidx = nodeindex[ sharedskey ];

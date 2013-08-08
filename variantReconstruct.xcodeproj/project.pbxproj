@@ -32,7 +32,7 @@
 		2B8B49A917987D6400563D02 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		2B8B49AB17987D6400563D02 /* variantReconstruct.1 */ = {isa = PBXFileReference; lastKnownFileType = text.man; path = variantReconstruct.1; sourceTree = "<group>"; };
 		2B8B49B617987FF000563D02 /* snp.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = snp.h; sourceTree = "<group>"; };
-		2BCB9E1D17B0316200BF1B94 /* snpgraph.h */ = {isa = PBXFileReference; path = snpgraph.h; sourceTree = "<group>"; };
+		2BCB9E1D17B0316200BF1B94 /* snpgraph.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = snpgraph.h; sourceTree = "<group>"; };
 		2BCB9E1F17B03B4C00BF1B94 /* snpgraph.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = snpgraph.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 

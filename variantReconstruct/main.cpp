@@ -19,47 +19,7 @@
 #include <algorithm>
 #include <regex.h>
 
-#include <boost/graph/undirected_graph.hpp>
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/bron_kerbosch_all_cliques.hpp>
-#include <boost/graph/graph_concepts.hpp>
-
-
 using namespace std;
-using namespace boost;
-
-
-struct all_clique_visitor
-{
-    vector< deque<unsigned long> > all_cliques;
-    
-    template <typename Clique, typename Graph>
-    inline void clique(const Clique& p, const Graph& g)
-    {
-        all_cliques.push_back(p);
-    }
-    
-    inline vector<deque<unsigned long> > returnAllCliques() 
-    { 
-        return all_cliques;
-    }    
-        
-};
-
-struct max_clique_visitor
-{
-    max_clique_visitor(std::size_t& max)
-    : maximum(max)
-    { }
-    
-    template <typename Clique, typename Graph>
-    inline void clique(const Clique& p, const Graph& g)
-    {
-        BOOST_USING_STD_MAX();
-        maximum = max BOOST_PREVENT_MACRO_SUBSTITUTION (maximum, p.size());
-    }
-    std::size_t& maximum;
-};
  
 vector<string> shallow_snps; // snps at positions where depth is < 1000.
 vector<string> snps_to_remove; // snpkeys of snps that are removed beacuse of low depth and fewer connectivity to other snps
@@ -67,6 +27,7 @@ map< string, snp > snpmap;   // key: string with snp pos and base, value: corres
 int numsnp = 0;
 map<string, int> snpkey_index; // numerical index for each snpkey, starting from 0 till numsnp-1;
 map<int, vector<string> > snpbins; // key: bin identifier, value: list of snps in that bin
+vector<vector<string> > cliques;
 int LINKTHRES = 2;
 int NUMREADTHRES = 2;
 float MINSNPFREQ = 0.002;
@@ -82,9 +43,6 @@ void hapread_open(const char *);
 void snp_open(const char *);
 void linkmatrix();
 void removeWeakSNPs();
-map<int, vector<float> > identifybins();
-void assignbins( map<int, vector<float> > );
-void printSNPbins();
 
 void getHaps();
 vector<vector<string> > disjointedSNPs ( vector<string> ); // take a list of snps, return disjointed set of these snps
@@ -93,8 +51,10 @@ void printSNPset ( vector<vector<string> > );
 
 void getHaps2();
 vector<string> sortedSNPsByFreq();
-
-void getHaps3();
+vector<vector<int> > findAllCliques( vector<vector<int> > ); // takes in adjacency matrix, returns vector of cliques
+void printCliques( vector<vector<int> >, vector<string> );
+void printVec (vector<int>);
+vector<vector<int> > uniqueCliques ( vector<vector<int> > );
 
 
 int usage() {
@@ -141,102 +101,13 @@ int main(int argc, const char * argv[]) {
         // generate and print link matrix to a file
         linkmatrix();
         
-       // getHaps2();
-        getHaps3();
+        // getHaps();
+        getHaps2();
         
-        /*
-        bindefined = identifybins();
-        assignbins( bindefined );
-        printSNPbins();
-        getHaps();
-        */
-    }
-    
+    }    
     return 0;
 }
 
-void getHaps3 () {
-    vector<string> sortedsnps;
-    
-    sortedsnps = sortedSNPsByFreq();
-    // read snps in the ascending order of their freq
-    // build adjacency matrix for all snps that share a read with the snp in consideration
-    // find cliques in the graph represented by the adjacency matrix -> these are probable variants
-    // also save connected components that do not form clique
-    
-    for (vector<string>::size_type i = 0; i != sortedsnps.size(); i++) {
-        snpgraph snplinks;
-        
-        snp s = snpmap[ sortedsnps[i] ];
-        s.printSharedSNP();
-        map<string, int> shared_snps = s.returnSharedSNP();
-        
-        snplinks.setgraphcenter(sortedsnps[i]);
-        snplinks.initializeGraph( shared_snps );
-        // for snps that share a read with current snp, see if those snps are linked as well
-        for (map<string, int>::iterator ss = shared_snps.begin(); ss != shared_snps.end(); ++ss) {
-            snp nbgsnp = snpmap[ ss->first ];
-            snplinks.updateGraph(ss->first, nbgsnp.returnSharedSNP());
-        }
-        
-        snplinks.printGraph();
-        
-        map<string, int> nodes = snplinks.returnGraphNodes();
-        vector<string> vertexvec;
-        vertexvec.resize( nodes.size() );
-        vector<vector<int> >adjmat = snplinks.returnAdjMat();
-        // create vector list of nodes
-        for (map<string, int>::iterator n= nodes.begin(); n != nodes.end(); ++n) {
-            vertexvec[n->second] = n->first;
-        }
-        int num_vertices = vertexvec.size(); // number of nodes in the graph
-        
-        // create a typedef for the Graph type
-      //  typedef adjacency_list<vecS, vecS, undirectedS> Graph;
-        typedef adjacency_list<vecS, vecS, bidirectionalS> Graph;
-        
-        Graph g(num_vertices);
-
-        all_clique_visitor acv;
-        
-        // create edge list
-        typedef std::pair<int, int> Edge;
-        for (int k = 0; k < num_vertices; k++) {
-            for (int j = k+1; j < num_vertices; j++) {
-                if (adjmat[k][j] > 0) {
-                    add_edge(k, j, g);
-                }
-            }
-        }
-        
-        // get the property map for vertex indices
-        typedef property_map<Graph, vertex_index_t>::type IndexMap;
-        IndexMap index = get(vertex_index, g);
-        
-        std::cout << "vertices(g) = ";
-        typedef graph_traits<Graph>::vertex_iterator vertex_iter;
-        std::pair<vertex_iter, vertex_iter> vp;
-        for (vp = vertices(g); vp.first != vp.second; ++vp.first)
-            std::cout << index[*vp.first] <<  " ";
-        std::cout << std::endl;
-        
-      //  std::size_t ret = 0;
-      //  bron_kerbosch_all_cliques(g, find_max_clique(ret));
-
-        bron_kerbosch_all_cliques(g, acv, 2);
-        /*
-        vector<deque<unsigned long> > all_cliques = acv.returnAllCliques();
-        for (vector<deque<unsigned long> >::size_type c = 0; c != all_cliques.size(); c++) {
-            cout << "clique " << c << endl;
-            for (deque<unsigned long>::size_type cs = 0; cs != all_cliques[c].size(); cs++) {
-                cout << all_cliques[c][cs] << " ";
-            }
-            cout << endl;
-        }
-         */
-        
-    }
-}
 
 
 void snp_open(const char * snpfile) {
@@ -417,6 +288,7 @@ void removeWeakSNPs() {
 
 void getHaps2 () {
     vector<string> sortedsnps;
+    vector<string> snps_seen;
     
     sortedsnps = sortedSNPsByFreq();
     // read snps in the ascending order of their freq
@@ -428,20 +300,239 @@ void getHaps2 () {
         snpgraph snplinks;
         
         snp s = snpmap[ sortedsnps[i] ];
-        s.printSharedSNP();
+    //    s.printSharedSNP();
         map<string, int> shared_snps = s.returnSharedSNP();
+        
+        // erase snps that have been looked at before, to avoid rediscovering same cliques
+        for (vector<string>::size_type i = 0; i < snps_seen.size(); i++) {
+            shared_snps.erase( snps_seen[i] );
+        }
+      
             
         snplinks.setgraphcenter(sortedsnps[i]);
         snplinks.initializeGraph( shared_snps );
         // for snps that share a read with current snp, see if those snps are linked as well
         for (map<string, int>::iterator ss = shared_snps.begin(); ss != shared_snps.end(); ++ss) {
             snp nbgsnp = snpmap[ ss->first ];
-            snplinks.updateGraph(ss->first, nbgsnp.returnSharedSNP());
+            snplinks.updateGraph(ss->first, nbgsnp.returnSharedSNP(), snps_seen);
         }
         
         snplinks.printGraph();
+        snps_seen.push_back( sortedsnps[i] );
+        vector<string> nodeidxvec = snplinks.returnGraphNodesVec();
+    /*    cout << "Printing node index vector:\n";
+        for (int m=0; m != nodeidxvec.size(); m++) {
+            cout << m << ": " << nodeidxvec[m] << endl;
+        }
+     */
+        
+        // find all cliques in the adjacency matrix of the current snp
+        vector<vector<int> > snpcliques;
+        
+        if (snplinks.returnAdjMat().size() > 1) { // adj matrix will have size of at least 1, i.e. the snp it is centered at. But size = 1 means no other links, so do not consider such a matrix
+            snpcliques = findAllCliques( snplinks.returnAdjMat() );
+            vector<vector<int> > uniq_snpcliques = uniqueCliques ( snpcliques );
+           // printCliques(snpcliques);
+            cout << "Printing unique snpcliques:\n";
+            printCliques(uniq_snpcliques, nodeidxvec);
+
+        }
     }
 }
+
+vector<vector<int> > findAllCliques( vector<vector<int> > M ) { 
+    // reads in adjacency matrix and returns all cliques.
+    
+    // three pointers: 
+    // 1. row 0 (first row) is the center of graph, meaning it is linked to all other nodes, so no need to re-check its links
+    // 2. as each row is read (from second row onwards), the node represented by the row index is going to be in all cliques that will be discovered from that row, so no need to check its links as well, for that row alone
+    // 3. only need to consider right inverted triangle of the matrix as it is symmetric, i.e. elements to the right of diagonal
+    //      => this also implies no need to look at last row as there are no elements to the right of diagonal
+    vector<vector<int> > cliques; 
+   // int m_size = M.size();
+   // cout << "M size: " << m_size << endl;
+    
+    for (vector<vector<int> >::size_type i=1; i != M.size()-1; i++) { // i=1 because no need to look at first row. see pointer 1.
+        vector<int> base_clique_i; // new clique
+        base_clique_i.push_back(0);
+        base_clique_i.push_back(i); // basic clique i has at least node 0 and i.
+        vector<int> nbg_i; // nodes that are linked to node i
+        for (vector<int>::size_type j = i+1; j != M[i].size(); j++) { // only elts to right of diagonal, see pointer 3.
+            if (M[i][j] > 0) { // nodes i and j are linked: j is neighbor of i
+                nbg_i.push_back( j );
+            }
+        }
+   /*     cout << "row " << i << ". nbg_i: ";
+        printVec(nbg_i);
+        cout << endl;
+    */
+        
+        int num_nbg = nbg_i.size();
+        if (num_nbg == 0) { // i has no neighbors, node 0 and i thus form a clique
+            cliques.push_back(base_clique_i);
+       /*     cout << "num nbg = 0, pushing in clique ";
+            printVec(base_clique_i);
+            cout << endl;
+        */
+        } else if (num_nbg == 1) {
+            vector<int> c = base_clique_i; // new clique
+            c.push_back(nbg_i[0]); // add only neighbor of i to clique
+            cliques.push_back(c);
+         /*   cout << "num nbg = 1, pushing in clique ";
+            printVec(c);
+            cout << endl;
+          */
+
+        } else { // i has multiple neighbors, and thus clique candidates
+            vector<int> separator; // among all neigbors of i, list of nodes that are unlinked, and thus would separate neighbors in different cliques
+            // check if neighbors of i are linked as well: look at all neighbors of i in pairs
+            for (vector<int>::size_type k=0; k != nbg_i.size(); k ++) {
+                
+                for (vector<int>::size_type l=k+1; l != nbg_i.size(); l++) {
+                  //  cout << "checking edge between nbgs " << nbg_i[k] << " and " << nbg_i[l] << ". val: " << M[ nbg_i[k] ][ nbg_i[l] ];
+                    
+                    if (M[ nbg_i[k] ][ nbg_i[l] ] == 0) { // no link, these nodes are clique separators
+                        separator.push_back( nbg_i[k] );
+                        separator.push_back( nbg_i[l] );
+                   //     cout << ": does not exist!" << endl;
+                    } else {
+                   //     cout << ": edge exists!" << endl;
+                    }
+                }
+            }
+            
+            if ( separator.empty() ) { // no seprators, add all neighbors of i to clique.
+                vector<int> c = base_clique_i; // new clique
+                c.insert(c.end(), nbg_i.begin(), nbg_i.end()); // add all neighbors of i to clique
+                cliques.push_back(c);
+            /*    cout << "num nbg = " << num_nbg << ", separator empty, pushing in clique ";
+                printVec(c);
+                cout << endl;
+             */
+            } else { // there are separators
+                // retain the separator nodes only once. remove duplicates.
+                sort( separator.begin(), separator.end() );
+                separator.erase( unique( separator.begin(), separator.end() ), separator.end() );
+                
+                vector<int> non_separators; // neighbors of i that are not separators, and thus form complete cl.
+                for (int x=0; x != nbg_i.size(); x++) {
+                    int flag = 0;
+                    for (int y=0; y != separator.size(); y++) {
+                        if (nbg_i[x] == separator[y]) {
+                            flag = 1;
+                            break;
+                        }
+                    }
+                    if (flag == 0) {
+                        non_separators.push_back( nbg_i[x] );
+                    }
+                }
+                // each clique will have one separator, all non_separators, and base_clique
+                // append base clique to non separators
+                non_separators.insert(non_separators.end(), base_clique_i.begin(), base_clique_i.end()); // add all neighbors of i to clique
+                
+            /*    cout << "num nbg = " << num_nbg << ", separator NOT empty, non separators ";
+                printVec(non_separators);
+                cout << endl;
+             */
+                
+
+                for (int y=0; y != separator.size(); y++) {
+                    vector<int> c = non_separators; // new clique
+                    c.push_back(separator[y]);
+                    cliques.push_back(c);
+               /*     cout << "pushing in clique :";
+                    printVec(c);
+                    cout << endl;
+                */
+                }
+            }
+        }
+    }
+    return cliques;
+}
+
+void printVec ( vector<int> v ) {
+    for (int i = 0; i != v.size(); i++) {
+        cout << v[i] << " ";
+    }
+    cout << endl;
+}
+void printCliques( vector<vector<int> > c, vector<string> nodedesc ){
+    for (vector<vector<int> >::size_type i = 0; i != c.size(); i++) {
+        cout << "clique " << i << " : ";
+        for (vector<int>::size_type j = 0; j != c[i].size(); j++) {
+            cout << " " << c[i][j];
+        }
+        cout << "\t";
+        for (vector<int>::size_type j = 0; j != c[i].size(); j++) {
+            cout << " " << nodedesc[ c[i][j] ];
+        }
+        cout << endl;
+    }
+}
+
+vector<vector<int> > uniqueCliques ( vector<vector<int> > c ) {
+    vector<vector<int> > uniq;
+    map<int, vector<int> > cliq_size; // key: cliq size, value: vector of cliq ids of that size
+    vector<int> sizes;
+    
+    for (vector<vector<int> >::size_type i = 0; i != c.size(); i++) { // for each clique, save clique id, 'i', in correct size vector
+        int cs = c[i].size(); // clique i has size cs
+ //       cout << "clique " << i << " size " << cs << endl;
+        cliq_size[cs].push_back(i); 
+        sizes.push_back(cs);
+    }    
+    sort(sizes.begin(), sizes.end());
+    int numsizes = sizes.size();
+    // for all cliques of a given size, see if it occurs in cliques that are bigger, and save it only if it doesn't and thus is unique
+    for (int i=0; i != numsizes; i++) { // sizes are sorted, which are also keys of cliq_size map
+        
+        vector<int> cs_ids = cliq_size[ sizes[i] ]; // ids of cliques of this size
+        int numc = cs_ids.size();
+        for (int a = 0; a != numc; a++) {
+            int cid = cs_ids[a]; // clique id for a clique of this size
+            vector<int> cliq = c[cid]; // get clique using this id
+            int flag = 0; // if a bigger cliq is found that contains this current cliq, flag will be set to 1
+                
+            // test if this clique is present in bigger cliques
+            for (int j=i+1; j != numsizes; j++) { // sizes are sorted, which are also keys of cliq_size map. only looking at sizes that are bigger
+                if (flag == 1) {
+                    break; // cliq has been matched, no need to look into bigger cliques
+                } else {
+                    vector<int> bcs_ids = cliq_size[ sizes[j] ]; // ids of cliques of this size
+                    int numbc = bcs_ids.size();            
+                    for (int b = 0; b != numbc; b++) {
+                        int bcid = bcs_ids[b]; // clique id for the bigger cliq
+                        vector<int> bcliq = c[bcid]; // get clique using this id
+                            
+                        // now compare cliq and bigger cliq
+                        int match_size = 0;
+                        for (int x=0; x != cliq.size(); x++) {
+                            for (int y=0; y != bcliq.size(); y++) {
+                                if (cliq[x] == bcliq[y]) {
+                                    match_size++;
+                                    break;
+                                }
+                            }
+                        }
+                        if (match_size == cliq.size()) {
+                            flag = 1; // cliq is not unique
+                            break;
+                        }
+                    }
+                }
+            }
+            if (flag == 0) {
+                uniq.push_back( cliq );
+            } else {
+                continue; // if clique is not unique, then the bigger clique that contains this cliq will be saved.
+            }
+        }
+    }
+    return uniq;
+}
+
 
 vector<string> sortedSNPsByFreq() {
     vector<string> sortedsnps;
@@ -461,95 +552,6 @@ vector<string> sortedSNPsByFreq() {
     }
   */
     return sortedsnps;
-}
-
-map<int, vector<float> > identifybins() { // identify boundries of snp frequency bins
-    
-    // get list of frequencies for concerned snps
-    vector<float> freqs;
-    map<int, vector<float> > freqbins; // key: bin identifier, or rank, value: list of freqs in that bin
-    map<int, float> freqbin_means; // mean value of frequencies in a bin
-    int bincounter = 0;
-    map<int, vector<float> > binboundries; // key: bin identifier, value: min and max freqs in this bin
-    
-    for (map<string, snp>::iterator m = snpmap.begin(); m != snpmap.end(); ++m) {
-        freqs.push_back(m->second.cov());
-   //     outfile << m->second.cov() << endl;
-
-        if (m->second.cov() == 0.0) {
-            outfile << m->first << endl;
-        }
-    }
-    
-    sort(freqs.begin(), freqs.end());
-
-    // add first freq to first bin
-    freqbins[ bincounter ].push_back(freqs[0]);
-    freqbin_means[ bincounter ] = freqs[0];
-    bincounter++;
-    outfile << "first bin entry " << freqs[0] << endl;
-    
-    
-    for (int i=1; i<freqs.size(); i++) {
-        // check which bin is the best fit- i.e. freq within a fifth of bin mean freq
-        int flag = 0; // flag = 1 if a bin is assigned, else stays 0 => create new bin
-        for (map<int, float>::iterator bm=freqbin_means.begin(); bm != freqbin_means.end(); ++bm) {
-            float upper = bm->second + bm->second/5.0;
-            float lower = bm->second - bm->second/5.0;
-            if (freqs[i] >= lower and freqs[i] <= upper) {
-                freqbins[ bm->first ].push_back( freqs[i] );
-                flag = 1;
-                break;
-            } else {
-                continue;
-            }
-        }
-        if (flag == 0) { // i.e., no suitable bin was found
-            freqbins[ bincounter ].push_back(freqs[i]);
-            freqbin_means[ bincounter ] = freqs[i];
-            bincounter++;
-        }
-    }
-    // print bins
-    outfile << "\nPrinting snp bins\n";
-    for (map<int, vector<float> >::iterator b=freqbins.begin(); b != freqbins.end(); ++b) {
-        outfile << "\n" << b->first << " : " << endl;
-        binboundries[ b->first ].push_back( b->second[0] ); // min freq value in bin
-        binboundries[ b->first ].push_back( b->second[ b->second.size()-1 ] ); // last (max) freq in bin
-        for (int i = 0; i <b->second.size(); i++) {
-            outfile << b->second[i] << ", ";
-        }
-    }    
-    return binboundries;
-}
-
-void assignbins ( map<int, vector<float> > bindef ) {
-    
-    // for each snp in snpmap, find the bin based on snp freq
-    
-    for (map<string, snp>::iterator s = snpmap.begin(); s != snpmap.end(); ++s) {
-        float snpf = s->second.cov();
-        cout << s->second.getsnpkey() << endl;
-        s->second.printSharedSNP();
-        
-        for (map<int, vector<float> >::iterator b = bindef.begin(); b != bindef.end(); ++b) {
-            if ( snpf >= b->second[0] and snpf <= b->second[1] ) { // snpfreq is within the upper and lower range of bin
-                s->second.setbin( b->first );
-                // update global variable snpbins
-                snpbins[ b->first ].push_back( s->second.getsnpkey() );
-                break;
-            }
-        }
-    }
-}
-
-void printSNPbins () {
-    for (map<int, vector<string> >::iterator s= snpbins.begin(); s != snpbins.end(); ++s) {
-        outfile << "bin is " << s->first << endl;
-        for (int i = 0; i < s->second.size(); i++ ) {
-            outfile << s->second[i] << endl;
-        }
-    }
 }
 
 void getHaps() {
