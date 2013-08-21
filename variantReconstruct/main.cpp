@@ -25,6 +25,7 @@ vector<string> shallow_snps; // snps at positions where depth is < 1000.
 vector<string> snps_to_remove; // snpkeys of snps that are removed beacuse of low depth and fewer connectivity to other snps
 map< string, snp > snpmap;   // key: string with snp pos and base, value: corresponding snp object
 int numsnp = 0;
+map<int, vector<int> > hapmap; // key: snp pos, val: vector of snp pos that belong to a clique centered at the snp pos which is key
 map<string, int> snpkey_index; // numerical index for each snpkey, starting from 0 till numsnp-1;
 map<int, vector<string> > snpbins; // key: bin identifier, value: list of snps in that bin
 vector<vector<string> > cliques;
@@ -36,7 +37,7 @@ int MINDEPTH = 1000; // coverage depth below which a snp is considered 'shallow'
 ofstream outfile; // output file
 ofstream linkmat_out; // contains linkmatrix
 ofstream truesnps; // print snps that have sufficient read depth, snp freq, and connectivity to other snps
-
+ofstream cliquestofile; // file to print cliques to
 
 // declare functions
 void hapread_open(const char *);
@@ -52,9 +53,10 @@ void printSNPset ( vector<vector<string> > );
 void getHaps2();
 vector<string> sortedSNPsByFreq();
 vector<vector<int> > findAllCliques( vector<vector<int> > ); // takes in adjacency matrix, returns vector of cliques
-void printCliques( vector<vector<int> >, vector<string> );
+vector<vector<string> > printCliques( vector<vector<int> >, vector<string> );
 void printVec (vector<int>);
 vector<vector<int> > uniqueCliques ( vector<vector<int> > );
+vector<vector<string> > uniqueStringCliques ( vector<vector<string> > );
 
 
 int usage() {
@@ -68,6 +70,7 @@ int main(int argc, const char * argv[]) {
     outfile.open("out1.txt");
     linkmat_out.open("linkmatrix.txt");
     truesnps.open("true_snps.txt");
+    cliquestofile.open("cliques.txt");
     
     map<int, vector<float> > bindefined;
 
@@ -104,6 +107,18 @@ int main(int argc, const char * argv[]) {
         // getHaps();
         getHaps2();
         
+        cout << cliques.size() << " cliques obtained!\nRemoving redundant cliques.\n";
+        // sometimes cliques completely contained in other cliques are found as well, remove those redundant cliques
+        vector<vector<string> > uniqstrclq = uniqueStringCliques(cliques);
+        
+        cout << "Printing unique cliques to file\n";
+        // print these cliques to file
+        for (vector<vector<string> >::size_type u=0; u!= uniqstrclq.size(); u++) {
+            for (vector<string>::size_type v=0; v!= uniqstrclq[u].size(); v++) {
+                cliquestofile << uniqstrclq[u][v] << " ";
+            }
+            cliquestofile << endl;
+        }
     }    
     return 0;
 }
@@ -302,6 +317,7 @@ void getHaps2 () {
         snp s = snpmap[ sortedsnps[i] ];
     //    s.printSharedSNP();
         map<string, int> shared_snps = s.returnSharedSNP();
+        cout << "SNP " << i << endl;
         
         // erase snps that have been looked at before, to avoid rediscovering same cliques
         for (vector<string>::size_type i = 0; i < snps_seen.size(); i++) {
@@ -317,7 +333,7 @@ void getHaps2 () {
             snplinks.updateGraph(ss->first, nbgsnp.returnSharedSNP(), snps_seen);
         }
         
-        snplinks.printGraph();
+    //    snplinks.printGraph();
         snps_seen.push_back( sortedsnps[i] );
         vector<string> nodeidxvec = snplinks.returnGraphNodesVec();
     /*    cout << "Printing node index vector:\n";
@@ -333,9 +349,10 @@ void getHaps2 () {
             snpcliques = findAllCliques( snplinks.returnAdjMat() );
             vector<vector<int> > uniq_snpcliques = uniqueCliques ( snpcliques );
            // printCliques(snpcliques);
-            cout << "Printing unique snpcliques:\n";
-            printCliques(uniq_snpcliques, nodeidxvec);
-
+        //    cout << "Printing unique snpcliques:\n";
+            vector<vector<string> > strclq = printCliques(uniq_snpcliques, nodeidxvec); // get string rep of cliques
+            cliques.insert(cliques.end(), strclq.begin(), strclq.end());
+            cout << "Number of cliques: " << cliques.size() << endl;
         }
     }
 }
@@ -458,18 +475,25 @@ void printVec ( vector<int> v ) {
     }
     cout << endl;
 }
-void printCliques( vector<vector<int> > c, vector<string> nodedesc ){
+
+vector<vector<string> > printCliques( vector<vector<int> > c, vector<string> nodedesc ){
+    vector<vector<string> > strcliqs;
+    
     for (vector<vector<int> >::size_type i = 0; i != c.size(); i++) {
-        cout << "clique " << i << " : ";
+        vector<string> sc;
+   //     cout << "clique " << i << " : ";
+   //     for (vector<int>::size_type j = 0; j != c[i].size(); j++) {
+   //         cout << " " << c[i][j];
+   //     }
+   //     cout << "\t";
         for (vector<int>::size_type j = 0; j != c[i].size(); j++) {
-            cout << " " << c[i][j];
+   //         cout << " " << nodedesc[ c[i][j] ];
+            sc.push_back( nodedesc[ c[i][j] ] );
         }
-        cout << "\t";
-        for (vector<int>::size_type j = 0; j != c[i].size(); j++) {
-            cout << " " << nodedesc[ c[i][j] ];
-        }
-        cout << endl;
+   //     cout << endl;
+        strcliqs.push_back( sc );
     }
+    return strcliqs;
 }
 
 vector<vector<int> > uniqueCliques ( vector<vector<int> > c ) {
@@ -533,6 +557,66 @@ vector<vector<int> > uniqueCliques ( vector<vector<int> > c ) {
     return uniq;
 }
 
+vector<vector<string> > uniqueStringCliques ( vector<vector<string> > c ) {
+    vector<vector<string> > uniq;
+    map<int, vector<int> > cliq_size; // key: cliq size, value: vector of cliq ids of that size
+    vector<int> sizes;
+    
+    for (vector<vector<int> >::size_type i = 0; i != c.size(); i++) { // for each clique, save clique id, 'i', in correct size vector
+        int cs = c[i].size(); // clique i has size cs
+        //       cout << "clique " << i << " size " << cs << endl;
+        cliq_size[cs].push_back(i); 
+        sizes.push_back(cs);
+    }    
+    sort(sizes.begin(), sizes.end());
+    int numsizes = sizes.size();
+    // for all cliques of a given size, see if it occurs in cliques that are bigger, and save it only if it doesn't and thus is unique
+    for (int i=0; i != numsizes; i++) { // sizes are sorted, which are also keys of cliq_size map
+        cout << "Clique size: " << sizes[i] << endl;
+        vector<int> cs_ids = cliq_size[ sizes[i] ]; // ids of cliques of this size
+        int numc = cs_ids.size();
+        for (int a = 0; a != numc; a++) {
+            int cid = cs_ids[a]; // clique id for a clique of this size
+            vector<string> cliq = c[cid]; // get clique using this id
+            int flag = 0; // if a bigger cliq is found that contains this current cliq, flag will be set to 1
+            
+            // test if this clique is present in bigger cliques
+            for (int j=i+1; j != numsizes; j++) { // sizes are sorted, which are also keys of cliq_size map. only looking at sizes that are bigger
+                if (flag == 1) {
+                    break; // cliq has been matched, no need to look into bigger cliques
+                } else {
+                    vector<int> bcs_ids = cliq_size[ sizes[j] ]; // ids of cliques of this size
+                    int numbc = bcs_ids.size();            
+                    for (int b = 0; b != numbc; b++) {
+                        int bcid = bcs_ids[b]; // clique id for the bigger cliq
+                        vector<string> bcliq = c[bcid]; // get clique using this id
+                        
+                        // now compare cliq and bigger cliq
+                        int match_size = 0;
+                        for (int x=0; x != cliq.size(); x++) {
+                            for (int y=0; y != bcliq.size(); y++) {
+                                if (cliq[x] == bcliq[y]) {
+                                    match_size++;
+                                    break;
+                                }
+                            }
+                        }
+                        if (match_size == cliq.size()) {
+                            flag = 1; // cliq is not unique
+                            break;
+                        }
+                    }
+                }
+            }
+            if (flag == 0) {
+                uniq.push_back( cliq );
+            } else {
+                continue; // if clique is not unique, then the bigger clique that contains this cliq will be saved.
+            }
+        }
+    }
+    return uniq;
+}
 
 vector<string> sortedSNPsByFreq() {
     vector<string> sortedsnps;

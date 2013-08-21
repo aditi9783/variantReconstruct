@@ -60,19 +60,19 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "-s MiSeq_TcellHIV_snps_based_on_basefreq.out"
-            isEnabled = "NO">
+            isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-r MiSeq_TcellHIV_hapread.out"
-            isEnabled = "NO">
+            isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-s trial_snps_based_on_basefreq.out"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-r trial_hapread.out"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-s MiSeq_HIV_snps_based_on_basefreq.out"
